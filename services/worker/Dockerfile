@@ -24,4 +24,6 @@ COPY --from=build /app/services/worker/dist ./dist
 
 USER node
 
+EXPOSE 9090
+
 CMD ["node", "dist/index.js"]
