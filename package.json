@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "eslint 'services/*/src/**/*.ts'",
     "test": "npm run test --workspaces --if-present",
     "dev:api": "npm run dev --workspace=services/api",
