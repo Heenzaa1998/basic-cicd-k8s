@@ -59,10 +59,14 @@ jobs:
               - 'services/api/**'
               - 'tsconfig.base.json'
               - 'package-lock.json'
+              - '.dockerignore'
+              - '.github/workflows/**'
             worker:
               - 'services/worker/**'
               - 'tsconfig.base.json'
               - 'package-lock.json'
+              - '.dockerignore'
+              - '.github/workflows/**'
 
   # ─── Stage 2: Build API Image ───────────────────────────
   build-api:
