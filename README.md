@@ -80,12 +80,19 @@ flowchart LR
 │   │   ├── Dockerfile
 │   │   ├── package.json
 │   │   ├── tsconfig.json
-│   │   └── src/index.ts
+│   │   ├── jest.config.js
+│   │   └── src/
+│   │       ├── app.ts         # Express app (routes, middleware)
+│   │       ├── app.test.ts    # Unit tests
+│   │       └── index.ts       # Server entrypoint
 │   └── worker/
 │       ├── Dockerfile
 │       ├── package.json
 │       ├── tsconfig.json
-│       └── src/index.ts
+│       ├── jest.config.js
+│       └── src/
+│           ├── index.ts
+│           └── worker.test.ts # Unit tests
 ├── env/
 │   ├── dev.env.example
 │   ├── uat.env.example
