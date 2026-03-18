@@ -58,12 +58,14 @@ jobs:
             api:
               - 'services/api/**'
               - 'tsconfig.base.json'
+              - 'package.json'
               - 'package-lock.json'
               - '.dockerignore'
               - '.github/workflows/**'
             worker:
               - 'services/worker/**'
               - 'tsconfig.base.json'
+              - 'package.json'
               - 'package-lock.json'
               - '.dockerignore'
               - '.github/workflows/**'
