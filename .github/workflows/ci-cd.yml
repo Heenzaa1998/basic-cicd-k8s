@@ -1,0 +1,249 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  # ─── Stage 1: Lint & Test ────────────────────────────────
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+  # ─── Detect Changes ─────────────────────────────────────
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      worker: ${{ steps.filter.outputs.worker }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'services/api/**'
+              - 'tsconfig.base.json'
+              - 'package-lock.json'
+            worker:
+              - 'services/worker/**'
+              - 'tsconfig.base.json'
+              - 'package-lock.json'
+
+  # ─── Stage 2: Build API Image ───────────────────────────
+  build-api:
+    name: Build API Image
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.api == 'true'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "tag=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build & Push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/api/Dockerfile
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:${{ steps.tag.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:latest
+
+  # ─── Stage 2: Build Worker Image ────────────────────────
+  build-worker:
+    name: Build Worker Image
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.worker == 'true'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "tag=pr-${{ github.event.number }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build & Push Worker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: services/worker/Dockerfile
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/worker:${{ steps.tag.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/worker:latest
+
+  # ─── Stage 3: Security Scan ──────────────────────────────
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-api, build-worker]
+    if: |
+      always() &&
+      github.event_name == 'push' &&
+      (needs.build-api.result == 'success' || needs.build-worker.result == 'success')
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy on API image
+        if: needs.detect-changes.outputs.api == 'true'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:${{ github.sha }}
+          format: "sarif"
+          output: "api-trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload API scan results
+        if: needs.detect-changes.outputs.api == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "api-trivy-results.sarif"
+          category: "api-security"
+
+      - name: Run Trivy on Worker image
+        if: needs.detect-changes.outputs.worker == 'true'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/worker:${{ github.sha }}
+          format: "sarif"
+          output: "worker-trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Worker scan results
+        if: needs.detect-changes.outputs.worker == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: "worker-trivy-results.sarif"
+          category: "worker-security"
+
+  # ─── Stage 4: Deploy via GitOps (Mocked) ────────────────
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-api, build-worker, security-scan]
+    if: |
+      always() &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'push' &&
+      (needs.build-api.result == 'success' || needs.build-worker.result == 'success') &&
+      !contains(needs.*.result, 'failure')
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Validate Helm chart
+        run: helm lint helm/
+
+      - name: Render manifests (dry-run)
+        run: |
+          helm template myapp helm/ \
+            -f helm/values-prod.yaml \
+            --set image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }} \
+            --set image.tag=${{ github.sha }}
+
+      - name: Deploy via GitOps (mocked)
+        run: |
+          echo "============================================"
+          echo "  GITOPS DEPLOY (MOCKED)"
+          echo "============================================"
+          echo ""
+          echo "Changed services:"
+          echo "  API:    ${{ needs.detect-changes.outputs.api }}"
+          echo "  Worker: ${{ needs.detect-changes.outputs.worker }}"
+          echo ""
+          echo "In production, this step would:"
+          echo "  1. Clone the GitOps config repository"
+          echo "  2. Update image tags for changed services only"
+          echo "  3. Commit and push changes"
+          echo "  4. ArgoCD detects the change and syncs"
+          echo ""
+          echo "--- Simulating GitOps flow ---"
+          echo ""
+          echo "git clone https://github.com/org/gitops-config.git"
+          echo "cd gitops-config/apps/basic-cicd-k8s"
+          echo ""
+          echo "yq -i '.image.tag = \"${{ github.sha }}\"' values-prod.yaml"
+          echo "yq -i '.image.repository = \"${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}\"' values-prod.yaml"
+          echo ""
+          echo "git add values-prod.yaml"
+          echo "git commit -m 'deploy: update image to ${{ github.sha }}'"
+          echo "git push origin main"
+          echo ""
+          echo "ArgoCD will auto-sync the new manifests."
+          echo "============================================"
+          echo "GitOps deploy completed (mocked)"
