@@ -3,8 +3,8 @@ env: development
 logLevel: debug
 
 image:
-  repository: basic-cicd-k8s
-  tag: "1.0.0"
+  repository: ghcr.io/heenzaa1998/basic-cicd-k8s
+  tag: "latest"
   pullPolicy: IfNotPresent
 
 # ─── API Service ─────────────────────────────────────────
