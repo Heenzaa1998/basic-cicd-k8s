@@ -1,0 +1,62 @@
+{{- if .Values.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "app.fullname" . }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+    {{- with .Values.monitoring.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  groups:
+    - name: {{ include "app.fullname" . }}.rules
+      rules:
+        # High error rate (>5% of requests are 5xx)
+        - alert: HighErrorRate
+          expr: |
+            sum(rate(http_request_errors_total{status_code=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+            > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High API error rate"
+            description: "More than 5% of requests are returning 5xx errors for the last 5 minutes."
+
+        # High request latency (p95 > 1s)
+        - alert: HighLatency
+          expr: |
+            histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
+            > 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High API latency"
+            description: "95th percentile request latency is above 1 second for the last 5 minutes."
+
+        # Worker stalled (no ticks for 30s)
+        - alert: WorkerStalled
+          expr: |
+            time() - max(worker_last_tick_timestamp) > 30
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Background worker stalled"
+            description: "Worker has not processed a tick in over 30 seconds."
+
+        # API pod crash looping
+        - alert: PodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total{container=~"api|worker"}[15m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod is crash-looping"
+            description: "Pod {{ "{{" }} $labels.pod {{ "}}" }} has been restarting frequently."
+{{- end }}
