@@ -169,7 +169,15 @@ jobs:
       - name: Set lowercase image prefix
         run: echo "IMAGE_PREFIX=${IMAGE_PREFIX,,}" >> $GITHUB_ENV
 
-      - name: Run Trivy on API image
+      - name: Scan API image
+        if: needs.detect-changes.outputs.api == 'true'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/api:${{ github.sha }}
+          format: "table"
+          severity: "CRITICAL,HIGH"
+
+      - name: Scan API image (SARIF)
         if: needs.detect-changes.outputs.api == 'true'
         uses: aquasecurity/trivy-action@master
         with:
@@ -185,7 +193,15 @@ jobs:
           sarif_file: "api-trivy-results.sarif"
           category: "api-security"
 
-      - name: Run Trivy on Worker image
+      - name: Scan Worker image
+        if: needs.detect-changes.outputs.worker == 'true'
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/worker:${{ github.sha }}
+          format: "table"
+          severity: "CRITICAL,HIGH"
+
+      - name: Scan Worker image (SARIF)
         if: needs.detect-changes.outputs.worker == 'true'
         uses: aquasecurity/trivy-action@master
         with:
