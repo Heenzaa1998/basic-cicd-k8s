@@ -100,6 +100,7 @@ flowchart LR
 ├── docker-compose.yml
 ├── tsconfig.base.json
 ├── package.json
+├── Makefile
 └── README.md
 ```
 
@@ -121,12 +122,26 @@ npm install
 
 ## Usage Instructions
 
+### Makefile
+
+All common commands are available via `make`:
+
+```bash
+make help            # Show all available targets
+make install         # Install dependencies
+make lint            # Run ESLint
+make typecheck       # TypeScript type checking
+make build           # Build all services
+make test            # Run unit tests
+make docker-up       # Start with Docker Compose
+make helm-lint       # Lint Helm chart
+make helm-install    # Install Helm release
+make clean           # Remove build artifacts
+```
+
 ### Local Development
 
 ```bash
-# Install dependencies
-npm install
-
 # Run API in dev mode
 npm run dev:api
 
