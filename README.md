@@ -1,5 +1,13 @@
 # Basic CI/CD with Kubernetes
 
+[![CI/CD Pipeline](https://github.com/Heenzaa1998/basic-cicd-k8s/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Heenzaa1998/basic-cicd-k8s/actions/workflows/ci-cd.yml)
+![Docker](https://img.shields.io/badge/Docker-Multi--Stage-2496ED?logo=docker&logoColor=white)
+![Helm](https://img.shields.io/badge/Helm-3-0F1689?logo=helm&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-Helm-326CE5?logo=kubernetes&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-20--alpine-339933?logo=nodedotjs&logoColor=white)
+![Trivy](https://img.shields.io/badge/Security-Trivy-1904DA?logo=aquasecurity&logoColor=white)
+
 A containerized application consisting of an API service and a background worker, deployed on Kubernetes via Helm and automated through GitHub Actions CI/CD pipeline.
 
 ## Table of Contents
